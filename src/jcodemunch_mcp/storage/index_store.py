@@ -146,13 +146,46 @@ class IndexStore:
 
         self.base_path.mkdir(parents=True, exist_ok=True)
 
+    def _safe_repo_component(self, value: str, field_name: str) -> str:
+        """Validate owner/name components used in on-disk cache paths."""
+        import re
+
+        if not value or value in {".", ".."}:
+            raise ValueError(f"Invalid {field_name}: {value!r}")
+        if "/" in value or "\\" in value:
+            raise ValueError(f"Invalid {field_name}: {value!r}")
+        if not re.fullmatch(r"[A-Za-z0-9._-]+", value):
+            raise ValueError(f"Invalid {field_name}: {value!r}")
+        return value
+
+    def _repo_slug(self, owner: str, name: str) -> str:
+        """Stable and safe slug used for index/content file paths."""
+        safe_owner = self._safe_repo_component(owner, "owner")
+        safe_name = self._safe_repo_component(name, "name")
+        return f"{safe_owner}-{safe_name}"
+
     def _index_path(self, owner: str, name: str) -> Path:
         """Path to index JSON file."""
-        return self.base_path / f"{owner}-{name}.json"
+        return self.base_path / f"{self._repo_slug(owner, name)}.json"
 
     def _content_dir(self, owner: str, name: str) -> Path:
         """Path to raw content directory."""
-        return self.base_path / f"{owner}-{name}"
+        return self.base_path / self._repo_slug(owner, name)
+
+    def _safe_content_path(self, content_dir: Path, relative_path: str) -> Optional[Path]:
+        """Resolve a content path and ensure it stays within content_dir.
+
+        Prevents path traversal when writing/reading cached raw files from
+        untrusted repository paths.
+        """
+        try:
+            base = content_dir.resolve()
+            candidate = (content_dir / relative_path).resolve()
+            if os.path.commonpath([str(base), str(candidate)]) != str(base):
+                return None
+            return candidate
+        except (OSError, ValueError):
+            return None
 
     def save_index(
         self,
@@ -211,7 +244,9 @@ class IndexStore:
         content_dir.mkdir(parents=True, exist_ok=True)
 
         for file_path, content in raw_files.items():
-            file_dest = content_dir / file_path
+            file_dest = self._safe_content_path(content_dir, file_path)
+            if not file_dest:
+                raise ValueError(f"Unsafe file path in raw_files: {file_path}")
             file_dest.parent.mkdir(parents=True, exist_ok=True)
             with open(file_dest, "w", encoding="utf-8") as f:
                 f.write(content)
@@ -259,7 +294,9 @@ class IndexStore:
         if not symbol:
             return None
 
-        file_path = self._content_dir(owner, name) / symbol["file"]
+        file_path = self._safe_content_path(self._content_dir(owner, name), symbol["file"])
+        if not file_path:
+            return None
 
         if not file_path.exists():
             return None
@@ -391,13 +428,17 @@ class IndexStore:
 
         # Remove deleted files from content dir
         for fp in deleted_files:
-            dead = content_dir / fp
+            dead = self._safe_content_path(content_dir, fp)
+            if not dead:
+                continue
             if dead.exists():
                 dead.unlink()
 
         # Write changed + new files
         for fp, content in raw_files.items():
-            dest = content_dir / fp
+            dest = self._safe_content_path(content_dir, fp)
+            if not dest:
+                raise ValueError(f"Unsafe file path in raw_files: {fp}")
             dest.parent.mkdir(parents=True, exist_ok=True)
             with open(dest, "w", encoding="utf-8") as f:
                 f.write(content)

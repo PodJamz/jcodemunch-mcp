@@ -120,6 +120,97 @@ def test_delete_index(tmp_path):
     assert store.load_index("test", "repo") is None
 
 
+def test_save_index_rejects_path_traversal_in_raw_files(tmp_path):
+    """Raw file cache writes must not escape content dir."""
+    store = IndexStore(base_path=str(tmp_path))
+
+    with pytest.raises(ValueError, match="Unsafe file path"):
+        store.save_index(
+            owner="evil",
+            name="repo",
+            source_files=["../../escape.py"],
+            symbols=[],
+            raw_files={"../../escape.py": "print('x')"},
+            languages={"python": 1},
+        )
+
+
+def test_get_symbol_content_rejects_traversal_symbol_file(tmp_path):
+    """Traversal in stored symbol file path should be blocked on read."""
+    store = IndexStore(base_path=str(tmp_path))
+    content_dir = tmp_path / "owner-repo"
+    content_dir.mkdir(parents=True)
+    (content_dir / "safe.py").write_text("def ok():\n    return 1\n", encoding="utf-8")
+
+    # Write index manually to simulate malicious/corrupt symbol metadata.
+    index_path = tmp_path / "owner-repo.json"
+    index_path.write_text(
+        json.dumps({
+            "repo": "owner/repo",
+            "owner": "owner",
+            "name": "repo",
+            "indexed_at": "2025-01-01T00:00:00",
+            "source_files": ["safe.py"],
+            "languages": {"python": 1},
+            "symbols": [{
+                "id": "bad::sym",
+                "file": "../../etc/passwd",
+                "name": "bad",
+                "qualified_name": "bad",
+                "kind": "function",
+                "language": "python",
+                "signature": "def bad():",
+                "docstring": "",
+                "summary": "",
+                "decorators": [],
+                "keywords": [],
+                "parent": "",
+                "line": 1,
+                "end_line": 1,
+                "byte_offset": 0,
+                "byte_length": 10,
+                "content_hash": "",
+            }],
+            "index_version": 2,
+            "file_hashes": {"safe.py": "abc"},
+            "git_head": "",
+        }),
+        encoding="utf-8",
+    )
+
+    assert store.get_symbol_content("owner", "repo", "bad::sym") is None
+
+
+def test_save_index_rejects_invalid_owner_component(tmp_path):
+    """Owner/name inputs should be safe for filesystem paths."""
+    store = IndexStore(base_path=str(tmp_path))
+
+    with pytest.raises(ValueError, match="Invalid owner"):
+        store.save_index(
+            owner="../escape",
+            name="repo",
+            source_files=["main.py"],
+            symbols=[],
+            raw_files={"main.py": ""},
+            languages={"python": 1},
+        )
+
+
+def test_save_index_rejects_invalid_name_component(tmp_path):
+    """Reject names with path separators or unsafe characters."""
+    store = IndexStore(base_path=str(tmp_path))
+
+    with pytest.raises(ValueError, match="Invalid name"):
+        store.save_index(
+            owner="owner",
+            name="repo/evil",
+            source_files=["main.py"],
+            symbols=[],
+            raw_files={"main.py": ""},
+            languages={"python": 1},
+        )
+
+
 def test_codeindex_get_symbol():
     """Test getting a symbol by ID from CodeIndex."""
     index = CodeIndex(
@@ -169,4 +260,3 @@ def test_codeindex_search():
     
     results = index.search("login", kind="function")
     assert len(results) > 0
-
