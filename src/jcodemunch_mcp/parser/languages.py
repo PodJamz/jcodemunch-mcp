@@ -55,7 +55,7 @@ LANGUAGE_EXTENSIONS = {
     ".js": "javascript",
     ".jsx": "javascript",
     ".ts": "typescript",
-    ".tsx": "typescript",
+    ".tsx": "tsx",
     ".go": "go",
     ".rs": "rust",
     ".java": "java",
@@ -132,6 +132,43 @@ JAVASCRIPT_SPEC = LanguageSpec(
     container_node_types=["class_declaration", "class"],
     constant_patterns=["lexical_declaration"],
     type_patterns=[],
+)
+
+
+# TSX specification (TypeScript with JSX — requires separate grammar)
+TSX_SPEC = LanguageSpec(
+    ts_language="tsx",
+    symbol_node_types={
+        "function_declaration": "function",
+        "class_declaration": "class",
+        "method_definition": "method",
+        "interface_declaration": "type",
+        "type_alias_declaration": "type",
+        "enum_declaration": "type",
+    },
+    name_fields={
+        "function_declaration": "name",
+        "class_declaration": "name",
+        "method_definition": "name",
+        "interface_declaration": "name",
+        "type_alias_declaration": "name",
+        "enum_declaration": "name",
+    },
+    param_fields={
+        "function_declaration": "parameters",
+        "method_definition": "parameters",
+        "arrow_function": "parameters",
+    },
+    return_type_fields={
+        "function_declaration": "return_type",
+        "method_definition": "return_type",
+        "arrow_function": "return_type",
+    },
+    docstring_strategy="preceding_comment",
+    decorator_node_type="decorator",
+    container_node_types=["class_declaration", "class"],
+    constant_patterns=["lexical_declaration"],
+    type_patterns=["interface_declaration", "type_alias_declaration", "enum_declaration"],
 )
 
 
@@ -582,6 +619,7 @@ LANGUAGE_REGISTRY = {
     "python": PYTHON_SPEC,
     "javascript": JAVASCRIPT_SPEC,
     "typescript": TYPESCRIPT_SPEC,
+    "tsx": TSX_SPEC,
     "go": GO_SPEC,
     "rust": RUST_SPEC,
     "java": JAVA_SPEC,

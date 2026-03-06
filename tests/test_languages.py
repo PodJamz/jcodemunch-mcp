@@ -77,6 +77,66 @@ def test_parse_typescript():
     assert interface.kind == "type"
 
 
+
+TSX_SOURCE = '''
+interface User {
+    name: string;
+}
+
+/** Get user by ID. */
+function getUser(id: number): User {
+    return { name: "Test" };
+}
+
+class UserService {
+    private users: User[] = [];
+
+    findById(id: number): User | undefined {
+        return this.users.find(u => u.id === id);
+    }
+}
+
+type ID = string | number;
+
+export function UserList() {
+  return (
+    <ul>
+      {UserService.getUsers().map((user) => (
+          <li>{user.name}</li>
+      ))}
+    </ul>
+  )
+}
+'''
+
+def test_parse_tsx():
+    """Test TSX parsing (TypeScript with JSX)."""
+    symbols = parse_file(TSX_SOURCE, "service.tsx", "tsx")
+
+    symbol = next((s for s in symbols if s.name == "User"), None)
+    assert symbol is not None
+    assert symbol.kind == "type"
+
+    symbol = next((s for s in symbols if s.name == "getUser"), None)
+    assert symbol is not None
+    assert symbol.kind == "function"
+
+    symbol = next((s for s in symbols if s.name == "UserService"), None)
+    assert symbol is not None
+    assert symbol.kind == "class"
+
+    symbol = next((s for s in symbols if s.name == "findById"), None)
+    assert symbol is not None
+    assert symbol.kind == "method"
+
+    symbol = next((s for s in symbols if s.name == "ID"), None)
+    assert symbol is not None
+    assert symbol.kind == "type"
+
+    symbol = next((s for s in symbols if s.name == "UserList"), None)
+    assert symbol is not None
+    assert symbol.kind == "function"
+
 GO_SOURCE = '''
 package main
 

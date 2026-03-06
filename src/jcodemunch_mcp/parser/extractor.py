@@ -164,7 +164,7 @@ def _walk_tree(
                     next_parent = symbol
 
     # Check for arrow/function-expression variable assignments in JS/TS
-    if node.type == "variable_declarator" and language in ("javascript", "typescript"):
+    if node.type == "variable_declarator" and language in ("javascript", "typescript", "tsx"):
         var_func = _extract_variable_function(
             node, spec, source_bytes, filename, language, parent_symbol
         )
