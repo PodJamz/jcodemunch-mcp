@@ -34,6 +34,8 @@ def parse_file(content: str, filename: str, language: str) -> list[Symbol]:
         symbols = _parse_nix_symbols(source_bytes, filename)
     elif language == "vue":
         symbols = _parse_vue_symbols(source_bytes, filename)
+    elif language == "ejs":
+        symbols = _parse_ejs_symbols(source_bytes, filename)
     else:
         spec = LANGUAGE_REGISTRY[language]
         symbols = _parse_with_spec(source_bytes, filename, language, spec)
@@ -1545,4 +1547,131 @@ def _parse_vue_symbols(source_bytes: bytes, filename: str) -> list[Symbol]:
         sym.line = sym.line + line_offset
         sym.end_line = sym.end_line + line_offset
         sym.language = "vue"
+    return symbols
+
+
+# ---------------------------------------------------------------------------
+# EJS (Embedded JavaScript Templates) custom symbol extractor
+# ---------------------------------------------------------------------------
+
+import re as _re
+
+# Matches JS function declarations inside <% %> scriptlet blocks
+_EJS_SCRIPTLET_RE = _re.compile(r"<%[-_]?(.*?)[-_]?%>", _re.DOTALL)
+_EJS_FUNC_RE = _re.compile(
+    r"(?:async\s+)?function\s+(\w+)\s*\(([^)]*)\)", _re.MULTILINE
+)
+_EJS_INCLUDE_RE = _re.compile(
+    r"""<%[-_]?\s*include\s*\(\s*['"]([^'"]+)['"]\s*[,)]""", _re.MULTILINE
+)
+
+
+def _parse_ejs_symbols(source_bytes: bytes, filename: str) -> list[Symbol]:
+    """Extract symbols from EJS (Embedded JavaScript Template) files.
+
+    Since no tree-sitter grammar exists for EJS, extraction uses regex:
+    - One synthetic "template" symbol per file (guarantees text-search indexing)
+    - JS function definitions found inside <% %> scriptlet blocks
+    - <%- include('partial') %> calls as import symbols
+
+    Line numbers are 1-based and match positions in the .ejs file.
+    """
+    content = source_bytes.decode("utf-8", errors="replace")
+    lines = content.splitlines()
+
+    # Build a byte-offset → line-number lookup
+    line_starts: list[int] = []
+    offset = 0
+    for line in lines:
+        line_starts.append(offset)
+        offset += len(line.encode("utf-8")) + 1  # +1 for \n
+
+    def offset_to_line(byte_pos: int) -> int:
+        lo, hi = 0, len(line_starts) - 1
+        while lo < hi:
+            mid = (lo + hi + 1) // 2
+            if line_starts[mid] <= byte_pos:
+                lo = mid
+            else:
+                hi = mid - 1
+        return lo + 1
+
+    import os as _os
+    template_name = _os.path.splitext(_os.path.basename(filename))[0]
+    symbols: list[Symbol] = []
+
+    # Synthetic template symbol — ensures the file is stored for text search
+    sym_bytes = source_bytes
+    symbols.append(Symbol(
+        id=make_symbol_id(filename, template_name, "template"),
+        file=filename,
+        name=template_name,
+        qualified_name=template_name,
+        kind="template",
+        language="ejs",
+        signature=f"template {template_name}",
+        docstring="",
+        parent=None,
+        line=1,
+        end_line=len(lines),
+        byte_offset=0,
+        byte_length=len(sym_bytes),
+        content_hash=compute_content_hash(sym_bytes),
+    ))
+
+    # Extract JS functions from scriptlet blocks
+    for scriptlet_match in _EJS_SCRIPTLET_RE.finditer(content):
+        scriptlet_text = scriptlet_match.group(1)
+        scriptlet_start = scriptlet_match.start()
+        for func_match in _EJS_FUNC_RE.finditer(scriptlet_text):
+            name = func_match.group(1)
+            params = func_match.group(2).strip()
+            byte_pos = scriptlet_start + func_match.start()
+            line_no = offset_to_line(byte_pos)
+            sig = f"function {name}({params})"
+            chunk = sig.encode("utf-8")
+            symbols.append(Symbol(
+                id=make_symbol_id(filename, name, "function"),
+                file=filename,
+                name=name,
+                qualified_name=name,
+                kind="function",
+                language="ejs",
+                signature=sig,
+                docstring="",
+                parent=None,
+                line=line_no,
+                end_line=line_no,
+                byte_offset=byte_pos,
+                byte_length=len(chunk),
+                content_hash=compute_content_hash(chunk),
+            ))
+
+    # Extract include references as import symbols
+    seen_includes: set[str] = set()
+    for inc_match in _EJS_INCLUDE_RE.finditer(content):
+        partial = inc_match.group(1)
+        if partial in seen_includes:
+            continue
+        seen_includes.add(partial)
+        line_no = offset_to_line(inc_match.start())
+        sig = f"include('{partial}')"
+        chunk = sig.encode("utf-8")
+        symbols.append(Symbol(
+            id=make_symbol_id(filename, partial, "import"),
+            file=filename,
+            name=partial,
+            qualified_name=partial,
+            kind="import",
+            language="ejs",
+            signature=sig,
+            docstring="",
+            parent=None,
+            line=line_no,
+            end_line=line_no,
+            byte_offset=inc_match.start(),
+            byte_length=len(chunk),
+            content_hash=compute_content_hash(chunk),
+        ))
+
     return symbols

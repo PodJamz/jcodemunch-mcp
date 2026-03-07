@@ -87,6 +87,7 @@ LANGUAGE_EXTENSIONS = {
     ".bash": "bash",
     ".nix": "nix",
     ".vue": "vue",
+    ".ejs": "ejs",
 }
 
 
@@ -729,6 +730,25 @@ NIX_SPEC = LanguageSpec(
 )
 
 
+# EJS (Embedded JavaScript Templates) specification
+# NOTE: No tree-sitter grammar exists for EJS. Extraction is handled by
+# _parse_ejs_symbols() in extractor.py via regex, which pulls JS function
+# definitions from <% %> scriptlet blocks and emits a synthetic "template"
+# symbol per file to ensure the file is always stored for text search.
+EJS_SPEC = LanguageSpec(
+    ts_language="ejs",
+    symbol_node_types={},
+    name_fields={},
+    param_fields={},
+    return_type_fields={},
+    docstring_strategy="preceding_comment",
+    decorator_node_type=None,
+    container_node_types=[],
+    constant_patterns=[],
+    type_patterns=[],
+)
+
+
 # Vue SFC specification
 # NOTE: Vue Single-File Components are parsed by _parse_vue_symbols() in
 # extractor.py, which extracts the <script>/<script setup> block and re-parses
@@ -772,6 +792,7 @@ LANGUAGE_REGISTRY = {
     "bash": BASH_SPEC,
     "nix": NIX_SPEC,
     "vue": VUE_SPEC,
+    "ejs": EJS_SPEC,
 }
 
 logger = logging.getLogger(__name__)

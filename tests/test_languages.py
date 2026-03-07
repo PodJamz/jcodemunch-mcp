@@ -1461,3 +1461,56 @@ def test_parse_vue_no_script():
     source = "<template><div>hello</div></template>"
     symbols = parse_file(source, "Static.vue", "vue")
     assert symbols == []
+
+
+EJS_SOURCE = '''<!DOCTYPE html>
+<html>
+<head><title><%= title %></title></head>
+<body>
+  <%- include('partials/header', { user: user }) %>
+
+  <% function formatDate(date) { %>
+    <span><%= date.toLocaleDateString() %></span>
+  <% } %>
+
+  <%- include('partials/footer') %>
+</body>
+</html>
+'''
+
+
+def test_parse_ejs():
+    """Test EJS template parsing."""
+    symbols = parse_file(EJS_SOURCE, "views/index.ejs", "ejs")
+
+    # Synthetic template symbol always present
+    tmpl = next((s for s in symbols if s.kind == "template"), None)
+    assert tmpl is not None
+    assert tmpl.name == "index"
+    assert tmpl.language == "ejs"
+
+    # JS function inside scriptlet block
+    fn = next((s for s in symbols if s.name == "formatDate"), None)
+    assert fn is not None
+    assert fn.kind == "function"
+    assert "formatDate(date)" in fn.signature
+
+    # Include references
+    header = next((s for s in symbols if s.name == "partials/header"), None)
+    assert header is not None
+    assert header.kind == "import"
+
+    footer = next((s for s in symbols if s.name == "partials/footer"), None)
+    assert footer is not None
+
+    from jcodemunch_mcp.parser.languages import get_language_for_path
+    assert get_language_for_path("views/index.ejs") == "ejs"
+
+
+def test_parse_ejs_no_scriptlets():
+    """EJS file with no scriptlets still produces the template symbol."""
+    source = "<html><body><h1>Hello</h1></body></html>"
+    symbols = parse_file(source, "static.ejs", "ejs")
+    assert len(symbols) == 1
+    assert symbols[0].kind == "template"
+    assert symbols[0].name == "static"
