@@ -44,8 +44,8 @@ To include optional environment variables at the same time:
 
 ```bash
 claude mcp add jcodemunch uvx jcodemunch-mcp \
-  -e GITHUB_TOKEN=ghp_xxxxxxxx \
-  -e ANTHROPIC_API_KEY=sk-ant-xxxxxxxx
+  -e GITHUB_TOKEN=ghp_... \
+  -e ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 Restart Claude Code after running the command.
@@ -64,15 +64,15 @@ Restart Claude Code after running the command.
       "command": "uvx",
       "args": ["jcodemunch-mcp"],
       "env": {
-        "GITHUB_TOKEN": "ghp_xxxxxxxx",
-        "ANTHROPIC_API_KEY": "sk-ant-xxxxxxxx"
+        "GITHUB_TOKEN": "ghp_...",
+        "ANTHROPIC_API_KEY": "sk-ant-..."
       }
     }
   }
 }
 ```
 
-Environment variables are optional — see the table below.
+Environment variables are optional — see the list in the Claude Desktop section below.
 
 ### Claude Desktop
 
@@ -93,8 +93,8 @@ Add to your `claude_desktop_config.json`:
       "command": "uvx",
       "args": ["jcodemunch-mcp"],
       "env": {
-        "GITHUB_TOKEN": "ghp_xxxxxxxx",
-        "ANTHROPIC_API_KEY": "sk-ant-xxxxxxxx"
+        "GITHUB_TOKEN": "ghp_...",
+        "ANTHROPIC_API_KEY": "sk-ant-..."
       }
     }
   }
@@ -121,7 +121,7 @@ Add to `.vscode/settings.json`:
       "command": "uvx",
       "args": ["jcodemunch-mcp"],
       "env": {
-        "GITHUB_TOKEN": "ghp_xxxxxxxx"
+        "GITHUB_TOKEN": "ghp_..."
       }
     }
   }
@@ -167,8 +167,8 @@ if (total > 0) output += ` │ ${total.toLocaleString()} tkns saved · $${cost} 
       "command": "uvx",
       "args": ["jcodemunch-mcp"],
       "env": {
-        "GITHUB_TOKEN": "ghp_xxxxxxxx",
-        "ANTHROPIC_API_KEY": "sk-ant-xxxxxxxx"
+        "GITHUB_TOKEN": "ghp_...",
+        "ANTHROPIC_API_KEY": "sk-ant-..."
       }
     }
   }
