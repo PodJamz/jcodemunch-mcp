@@ -81,10 +81,30 @@ SECRET_PATTERNS = [
 ]
 
 
+# Doc extensions that are safe from the broad *secret* glob. A file like
+# "secrets-handling.md" is documentation about secrets, never a credential file.
+# More specific patterns (*.key, *.pem, credentials.json, etc.) still apply to
+# all extensions regardless of this set.
+_SECRET_GLOB_SAFE_EXTENSIONS: frozenset[str] = frozenset({
+    ".md", ".markdown", ".mdx",
+    ".rst",
+    ".txt",
+    ".adoc", ".asciidoc", ".asc",
+    ".html", ".htm",
+    ".ipynb",
+})
+
+# Patterns that should NOT be applied to doc extensions (too broad for prose files).
+_SECRET_DOC_EXEMPT_PATTERNS: frozenset[str] = frozenset({"*secret*"})
+
+
 def is_secret_file(file_path: str) -> bool:
     """Check if a file path matches known secret file patterns.
 
-    Uses filename/extension matching, not content inspection.
+    Uses filename/extension matching, not content inspection. The broad
+    ``*secret*`` glob is not applied to known documentation extensions
+    (.md, .rst, .txt, .adoc, .html, .ipynb, etc.) to avoid false positives
+    on files like ``docs/secrets-handling.md``.
 
     Args:
         file_path: Relative file path (forward slashes).
@@ -96,8 +116,11 @@ def is_secret_file(file_path: str) -> bool:
 
     name = os.path.basename(file_path).lower()
     path_lower = file_path.lower()
+    _, ext = os.path.splitext(name)
 
     for pattern in SECRET_PATTERNS:
+        if pattern in _SECRET_DOC_EXEMPT_PATTERNS and ext in _SECRET_GLOB_SAFE_EXTENSIONS:
+            continue
         if fnmatch.fnmatch(name, pattern):
             return True
         # Also check full path for patterns like .env.*

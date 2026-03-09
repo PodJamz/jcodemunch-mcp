@@ -125,6 +125,31 @@ class TestSecretDetection:
         assert is_secret_file(".ENV") is True
         assert is_secret_file("Server.PEM") is True
 
+    @pytest.mark.parametrize("path", [
+        "docs/secrets-handling.md",
+        "docs/internal/secrets-management.md",
+        "guides/secrets-guide.rst",
+        "how-to-manage-secrets.txt",
+        "security/secret-rotation.adoc",
+        "notebooks/secrets-demo.ipynb",
+        "docs/secrets.html",
+    ])
+    def test_doc_files_about_secrets_not_flagged(self, path):
+        """Documentation files containing 'secret' in the name must not be excluded."""
+        assert is_secret_file(path) is False
+
+    @pytest.mark.parametrize("path", [
+        "config/secrets.yaml",
+        "config/secrets.json",
+        "src/secrets.py",
+        ".secrets",
+        "app.secrets",
+        "my-app-secrets",
+    ])
+    def test_non_doc_secret_files_still_flagged(self, path):
+        """Non-doc files with 'secret' in the name must still be caught."""
+        assert is_secret_file(path) is True
+
 
 # --- Binary Detection (S-05) ---
 
